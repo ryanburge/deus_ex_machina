@@ -130,7 +130,7 @@ cluster <- as.data.frame(k$cluster)
 joined <- bind_cols(idclust, cluster) %>% rename(clusters = `k$cluster`)
 
 xtab <- joined %>% filter(reltrad !=0) %>% 
-  mutate(reltrad = as.numeric(reltrad)) %> %T
+  mutate(reltrad = as.numeric(reltrad)) %>% 
   mutate(reltrad = recode(reltrad, "1= 'Evangelical'; 2 = 'Mainline'; 3 = 'B. Prot.'; 4 = 'Catholic'; 5 = 'Jewish'; 6 = 'Other Faith'; 7 = 'No Faith'")) %>% 
   mutate(clusters = recode(clusters, "1= 'Cluster 1'; 2 = 'Cluster 2'; 3 ='Cluster 3'; 4= 'Cluster 4'; 5 = 'Cluster 5'; 6 ='Cluster 6'; 7 = 'Cluster 7'")) %>% 
   tabyl(reltrad, clusters) %>%
