@@ -3,6 +3,7 @@ library(haven)
 library(car)
 library(janitor)
 library(extrafont)
+library(knitr)
 
 
 gss <- read_dta("C:/Users/Ryan Burge/Desktop/gss_reltrad.dta")
@@ -71,7 +72,7 @@ clust <- gss %>% select(age2, male, inc, white, ed, att, literal, inspired, fabl
 idclust <- gss %>% select(id, age2, male, inc, white, ed, att, literal, inspired, fables, white, black, tolerance, gaymarriage, abortion, pid, reltrad) %>% na.omit() 
 
 
-
+set.seed(62864)
 
 wss <- (nrow(clust)-1)*sum(apply(clust,2,var))
 for (i in 2:15) wss[i] <- sum(kmeans(clust,
@@ -83,7 +84,7 @@ elbow <- as.tibble(wss) %>% mutate(cluster = seq(from = 1, to = 15, by= 1))
 
 
 
-scatter_rb <- function(base_size = 25, base_family = "IBM Plex Serif") 
+scatter_rb <- function(base_size = 25, base_family = "Product Sans") 
 {theme(legend.position = "bottom", 
        legend.title = element_blank(), 
        legend.spacing.x = unit(1, "cm"),
@@ -93,23 +94,26 @@ scatter_rb <- function(base_size = 25, base_family = "IBM Plex Serif")
        # panel.grid.minor.y =  element_line(colour = "gray48", size = .25, linetype = "dashed"),
        panel.grid.major.x =  element_line(colour = "gray48", size = .25, linetype = "dashed"),
        text = element_text(base_family, size = 28),
-       plot.title = element_text(family = "IBM Plex Serif", size = 40, vjust =2, face = "bold"),
-       plot.subtitle = element_text(family = "IBM Plex Serif", size = 20, vjust =-1),
-       plot.caption = element_text(family = "IBM Plex Serif", size =20),
-       axis.title.x =  element_text(family = "IBM Plex Serif", size =24),
-       axis.title.y =  element_text(family = "IBM Plex Serif", size =24), 
-       axis.text.x = element_text(family = "IBM Plex Serif", size =18)
+       plot.title = element_text(family = "Product Sans", size = 40, vjust =2, face = "bold"),
+       plot.subtitle = element_text(family = "Product Sans", size = 20, vjust =-1),
+       plot.caption = element_text(family = "Product Sans", size =20),
+       axis.title.x =  element_text(family = "Product Sans", size =24),
+       axis.title.y =  element_text(family = "Product Sans", size =24), 
+       axis.text.x = element_text(family = "Product Sans", size =18)
 )
   
 }
 
 
 ggplot(elbow, aes(x=cluster, y= value)) + 
-  geom_point(size =2) + 
-  geom_line() + scatter_rb() + 
+  geom_point(size =3.5) + 
+  geom_line(size = 1.5) + scatter_rb() + 
   scale_x_continuous(breaks = round(seq(min(elbow$cluster), max(elbow$cluster), by = 1),1)) +
   labs(x= "Number of Clusters", y = "Within Groups Sum of Squares", title = "Elbow Method for Choosing Number of Clusters")
   
+
+
+ggsave(file="D://deus_ex_machina/elbow_graph.png", type = "cairo-png", width = 15, height = 15)
 
 # plot(1:15, wss, type="b", xlab="Number of Clusters",
 #      ylab="Within groups sum of squares")
@@ -119,14 +123,14 @@ k<-kmeans(clust, centers=6,iter.max=1000)
 k$size
 k$centers
 
-aggregate(clust,by=list(cluster=k$cluster), FUN=mean)
+
 
 cluster <- as.data.frame(k$cluster)
 
 joined <- bind_cols(idclust, cluster) %>% rename(clusters = `k$cluster`)
 
 xtab <- joined %>% filter(reltrad !=0) %>% 
-  mutate(reltrad = as.numeric(reltrad)) %>% 
+  mutate(reltrad = as.numeric(reltrad)) %> %T
   mutate(reltrad = recode(reltrad, "1= 'Evangelical'; 2 = 'Mainline'; 3 = 'B. Prot.'; 4 = 'Catholic'; 5 = 'Jewish'; 6 = 'Other Faith'; 7 = 'No Faith'")) %>% 
   mutate(clusters = recode(clusters, "1= 'Cluster 1'; 2 = 'Cluster 2'; 3 ='Cluster 3'; 4= 'Cluster 4'; 5 = 'Cluster 5'; 6 ='Cluster 6'; 7 = 'Cluster 7'")) %>% 
   tabyl(reltrad, clusters) %>%
@@ -135,4 +139,8 @@ xtab <- joined %>% filter(reltrad !=0) %>%
   adorn_pct_formatting() %>%
   adorn_ns()
 
+kable(xtab)
 
+clust %>% 
+  group_by(cluster = k$cluster) %>% 
+  summarise_all(funs(mean)) 
