@@ -115,21 +115,17 @@ ggplot(elbow, aes(x=cluster, y= value)) +
 
 ggsave(file="D://deus_ex_machina/elbow_graph.png", type = "cairo-png", width = 15, height = 15)
 
-# plot(1:15, wss, type="b", xlab="Number of Clusters",
-#      ylab="Within groups sum of squares")
 
 set.seed(62864)
 k<-kmeans(clust, centers=6,iter.max=1000)
 k$size
 k$centers
 
+cluster <- as_tibble(clust) %>% 
+  add_column(clusters = factor(k$cluster)) %>% bind_cols(idclust) 
+  
 
-
-cluster <- as.data.frame(k$cluster)
-
-joined <- bind_cols(idclust, cluster) %>% rename(clusters = `k$cluster`)
-
-xtab <- joined %>% filter(reltrad !=0) %>% 
+xtab <- cluster %>% filter(reltrad !=0) %>% 
   mutate(reltrad = as.numeric(reltrad)) %>% 
   mutate(reltrad = recode(reltrad, "1= 'Evangelical'; 2 = 'Mainline'; 3 = 'B. Prot.'; 4 = 'Catholic'; 5 = 'Jewish'; 6 = 'Other Faith'; 7 = 'No Faith'")) %>% 
   mutate(clusters = recode(clusters, "1= 'Cluster 1'; 2 = 'Cluster 2'; 3 ='Cluster 3'; 4= 'Cluster 4'; 5 = 'Cluster 5'; 6 ='Cluster 6'; 7 = 'Cluster 7'")) %>% 
@@ -141,6 +137,12 @@ xtab <- joined %>% filter(reltrad !=0) %>%
 
 kable(xtab)
 
-clust %>% 
+means <- clust %>% 
   group_by(cluster = k$cluster) %>% 
-  summarise_all(funs(mean)) 
+  summarise_all(funs(mean)) %>% 
+  mutate_if(is.numeric, funs(round(., 2))) %>% 
+  rename(`Age` = age2, `Male` = male, `Income` = inc, `White` = white, `Black` = black, `Education` = ed, `Church Attendance` = att, `Literal` = literal, `Inspired` = inspired, `Fables` = fables, `Tolerance` = tolerance, `Pro-Gay Marriage` = gaymarriage, `Pro-Choice` = abortion, `Rep. ID` = pid)  
+
+means$cluster <- paste("Cluster", means$cluster, sep = " ")
+
+dist(clust, method = "euclidean")
