@@ -66,7 +66,8 @@ anes <- anes %>% mutate(none = car::recode(V161266p, "1=1; else=0"))
 ## Born Again Question ####
 
 anes <- anes %>% 
-  mutate(reborn = car::recode(V161263, "1=1; else =0"))
+  mutate(reborn = car::recode(V161263, "1=1; else =0")) %>% 
+  mutate(reborn = as.factor(reborn))
 
 ## Cleaning up Reltrad ####  
 anes <- anes %>% 

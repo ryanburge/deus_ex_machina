@@ -1,0 +1,208 @@
+library(tidyverse)
+library(car)
+library(haven)
+library(ggsci)
+library(clustMixType)
+
+
+### RECODING/CLEANING VARIABLES ###
+
+
+## Race ####
+
+anes <- anes %>% 
+  mutate(black = car::recode(V161310x, "2=1; else =0")) %>% 
+  mutate(white = car::recode(V161310x, "1=1; else =0"))
+
+## Church Attendance ####
+anes <- anes %>% 
+  mutate(neveratt = car::recode(V161244, "2=1; else =0")) %>% 
+  mutate(att = case_when(V161245  == 2 ~ 4,
+                         V161245  == 3 ~ 3, 
+                         V161245  == 4 ~ 2, 
+                         V161245  == 5 | V161244 == 2 ~ 1,
+                         V161245a == 1 ~ 5,
+                         V161245a == 2 ~ 6)) %>% 
+  mutate(att = att/6)
+
+## View of Bible ###
+
+anes <- anes %>% 
+  mutate(bible = car::recode(V161243, "1=3; 2=2; 3=1; else=NA")) %>% 
+  mutate(literal = car::recode(V161243, "1=1; 2:3=0; else=NA")) %>% 
+  mutate(inspired = car::recode(V161243, "2=1; 1=0; 3=0; else=NA")) %>% 
+  mutate(fables = car::recode(V161243, "3=1; 1:2=0; else = NA")) %>% 
+  mutate(bible = bible/3)
+
+## Religious Guidance #### 
+
+anes <- anes %>% 
+  mutate(relguide = car::recode(V161242, "1=2; 2=3; 3=4; -1=1; else = NA")) %>% 
+  mutate(relguide = relguide/4)
+
+
+## Born Again Question ####
+
+anes <- anes %>% 
+  mutate(reborn = car::recode(V161263, "1=1; else =0")) %>% 
+  mutate(reborn = as.factor(reborn))
+
+## Cleaning up Reltrad ####  
+anes <- anes %>% 
+  mutate(reltrad = car::recode(V161265x, "-2 = NA"))
+
+
+##  Discrimination ####
+
+anes <- anes %>% 
+  mutate(discrim_xtn = car::recode(V162365, "1=5; 2=4; 3=3; 4=2; 5=1; else = NA")) %>% 
+  mutate(discrim_xtn = discrim_xtn/5) %>% 
+  mutate(discrim_muslim = car::recode(V162364, "1=5; 2=4; 3=3; 4=2; 5=1; else = NA")) %>% 
+  mutate(discrim_muslim = discrim_muslim/5)
+
+
+
+## Feeling Therms ####
+anes <- anes %>% 
+  mutate(therm_fundie = car::recode(V162095, "-9:-1= NA; 101:999 = NA")) %>% 
+  mutate(therm_fundie = therm_fundie/100) %>% 
+  mutate(therm_pope = car::recode(V162094, "-9:-1= NA; 101:999 = NA")) %>% 
+  mutate(therm_pope = therm_pope/100) %>% 
+  mutate(therm_muslim = car::recode(V162106, "-9:-1= NA; 101:999 = NA")) %>% 
+  mutate(therm_muslim = therm_muslim/100) %>% 
+  mutate(therm_xtn = car::recode(V162107, "-9:-1= NA; 101:999 = NA")) %>% 
+  mutate(therm_xtn = therm_xtn/100) %>% 
+  mutate(therm_jews = car::recode(V162108, "-9:-1= NA; 101:999 = NA")) %>% 
+  mutate(therm_jews = therm_jews/100)
+
+## Morality ####
+  
+anes <- anes %>% 
+  mutate(moral1 = car::recode(V162207, "-9:-1=NA")) %>% 
+  mutate(moral2 = car::recode(V162208, "5=1; 4=2; 3=3; 2=4; 1=5; else = NA")) %>% 
+  mutate(moral3 = car::recode(V162209, "-9:-1=NA")) %>% 
+  mutate(moral4 = car::recode(V162210, "5=1; 4=2; 3=3; 2=4; 1=5; else = NA")) %>% 
+  mutate(moral = moral1 + moral2 + moral3 + moral4) %>% 
+  mutate(moral = moral/20)
+
+
+### MAKING GRAPHS - DOING CLUSTERS - PRODUCING TABLES ####
+
+anes <- anes %>% 
+  mutate(black = as.factor(black))
+
+
+clust <- anes %>% 
+  select(black, att, reborn, bible, relguide, discrim_muslim, discrim_xtn, therm_fundie, therm_pope, therm_muslim, therm_jews, therm_xtn, moral) %>% 
+  na.omit()
+
+clust <- as.data.frame(clust)
+
+idclust <- anes %>% 
+  select(V160001, black, att, reborn, bible, relguide, discrim_muslim, discrim_xtn, therm_fundie, therm_pope, therm_muslim, therm_jews, therm_xtn, moral) %>% 
+  na.omit()
+
+
+## Making the Elbow Graph ####
+
+set.seed(90210)
+
+k.max <- 15
+
+wss <- sapply(1:k.max, 
+              function(k){kproto(clust, k)$tot.withinss})
+
+elbow <- as.tibble(wss) %>% mutate(cluster = seq(from = 1, to = 15, by= 1))
+
+ggplot(elbow, aes(x=cluster, y= value)) + 
+  geom_point(size =3.5) + 
+  geom_line(size = 1.5) + 
+  scale_x_continuous(breaks = round(seq(min(elbow$cluster), max(elbow$cluster), by = 1),1)) +
+  labs(x= "Number of Clusters", y = "Within Groups Sum of Squares", title = "Elbow Method for Choosing Number of Clusters") +
+  ggsave("D://deus_ex_machina/v3/elbow_graph.png")
+
+## Actual Clustering Here ####
+
+k<-kproto(clust, k=5,iter.max=100000)
+
+## Then joining it back to the IDs and RELTRADS ####
+
+cluster <- as_tibble(clust) %>% 
+  add_column(clusters = factor(k$cluster)) %>% bind_cols(idclust) 
+
+rel <- anes %>% 
+  select(V160001, reltrad)
+
+cluster <- left_join(cluster, rel)
+
+## Making the Crosstab Dataset ####
+
+xtab <- cluster %>% filter(reltrad !=0) %>% 
+  mutate(reltrad = as.numeric(reltrad)) %>% 
+  mutate(reltrad = recode(reltrad, "1= 'Mainline'; 2 = 'Evangelical'; 3 = 'Black Prot.'; 4 = 'Catholic'; 5 = 'Christian'; 6 = 'Jewish'; 7 = 'Other Faith'; 8 = 'No Faith'")) %>% 
+  mutate(clusters = recode(clusters, "1= 'Cluster 1'; 2 = 'Cluster 2'; 3 ='Cluster 3'; 4= 'Cluster 4'; 5 = 'Cluster 5'; 6 ='Cluster 6'; 7 = 'Cluster 7'; 8 = 'Cluster 8'; 9 = 'Cluster 9'")) %>% 
+  group_by(reltrad) %>%
+  ct(clusters) %>%
+  complete(clusters, fill = list(count = 0)) %>% 
+  replace(is.na(.), 0)
+
+### Heatmapping the Crosstab ####
+
+xtab %>% 
+  ggplot(., aes(x= clusters, y = reltrad)) +
+  geom_tile(aes(fill = pct), color = "black") +
+  scale_fill_gradient(low = "azure3", high = "#E94057") +
+  scale_x_discrete(position = "top")  +
+  geom_text(aes(x= clusters, y = reltrad, label = paste0(pct*100, '%')), size = 4, family = "font") +
+  labs(x= "", y = "", title = "Distribution of Religious Groups Across Clusters", subtitle = "", caption = "Data: ANES (2016)") +
+  ggsave("D://deus_ex_machina/v3/cluster_heatmap.png", width = 6)
+
+mean <- as.data.frame(k$centers)
+
+write_csv(mean, "D://deus_ex_machina/v3/mean_table.csv")
+
+
+### This is checking PID ####
+
+id <- cluster %>% 
+  select(V160001, clusters)
+
+anes <- left_join(anes, id)
+
+graph <- anes %>% 
+  group_by(clusters) %>% 
+  filter(V161158x > 0) %>% 
+  mean_ci(V161158x, ci = .84) %>% 
+  na.omit() %>% 
+  mutate(word = "Cluster") %>% 
+  mutate(clusters = paste(word, clusters))
+
+
+graph2 <- anes %>% 
+  filter(V161158x > 0) %>% 
+  mean_ci(V161158x, ci = .84) %>% 
+  na.omit() %>% 
+  mutate(clusters = "Entire Sample")
+
+
+graph %>% 
+  ggplot(., aes(y=mean, x= fct_rev(clusters), color = clusters)) +
+  geom_point(position=position_dodge(width=0.5), size =4) +
+  geom_errorbar(aes(ymin = lower, ymax=upper), position=position_dodge(0.5), size = 1, width = .25) +
+  coord_flip() +
+  labs(title = "Mean Partisan Identification for Each Cluster", x = "", y = "", caption = "Data: ANES (2016)") +
+  scale_y_continuous(limits = c(0.85,5.25), breaks = c(1,2,3,4,5,6,7), labels = c("Strong Democrat", "Not Very Strong Dem.", "Ind.-Democrat", "Independent", "Ind.- Republican", "Not Very Strong Rep.", "Strong Republican")) +
+  scale_color_npg() + 
+  geom_hline(yintercept = 3.86, linetype = "dashed") +
+  theme(legend.position = "none") +  
+  annotate("text", x=3.1, y = 3.6, label = "Sample Mean", size = 6, family = "font") +
+  theme(legend.title=element_blank()) +
+  theme(text=element_text(size=28, family="font")) +
+  ggsave("D://deus_ex_machina/v3/pid_means.png", height = 4, width =16) 
+
+
+
+
+
+
+
